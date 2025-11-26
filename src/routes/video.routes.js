@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const authMiddleware = require("../middlewares/auth.middleware");
+const { cloudinaryUploadMiddleware } = require('../helpers/upload.helper');
 
 // Models cần thiết
 const Video = require("../models/Video.model");
@@ -62,36 +63,62 @@ const updateLikeDislike = async (videoId, userId, newStatus) => {
 };
 
 
-//                VIDEO CRUD ENDPOINTS
+// VIDEO CRUD ENDPOINTS
 // 1. CREATE: POST /api/videos (Upload Video Metadata)
 
-router.post("/", authMiddleware, async (req, res) => {
-  try {
-    const { title, description, tags, visibility, videoUrl, thumbnailUrl } = req.body;
+// router.post("/", authMiddleware, async (req, res) => {
+//   try {
+//     const { title, description, tags, visibility, videoUrl, thumbnailUrl } = req.body;
 
-    if (!title || !videoUrl || !thumbnailUrl) {
-      return res
-        .status(400)
-        .json({ message: "Tiêu đề, URL video và URL thumbnail là bắt buộc." });
+//     if (!title || !videoUrl || !thumbnailUrl) {
+//       return res
+//         .status(400)
+//         .json({ message: "Tiêu đề, URL video và URL thumbnail là bắt buộc." });
+//     }
+
+//     const newVideo = await Video.create({
+//       ownerId: req.userId,
+//       title,
+//       description,
+//       tags: tags || [],
+//       visibility: visibility || "public",
+//       videoUrl,
+//       thumbnailUrl,
+//     });
+
+//     res.status(201).json(newVideo);
+//   } catch (error) {
+//     console.error("Lỗi POST /videos:", error);
+//     res.status(500).json({ message: "Tạo video thất bại." });
+//   }
+// });
+router.post("/", authMiddleware, cloudinaryUploadMiddleware, async (req, res) => {
+    try {
+        // req.videoUrl và req.thumbnailUrl đã có sẵn từ middleware
+        const { videoUrl, thumbnailUrl } = req; 
+        const { title, description, tags, visibility } = req.body;
+        
+        if (!title) {
+            return res.status(400).json({ message: "Tiêu đề là bắt buộc." });
+        }
+
+        const newVideo = await Video.create({
+            ownerId: req.userId,
+            title,
+            description,
+            // Cần parse tags nếu nó là một chuỗi JSON từ form-data
+            tags: tags ? JSON.parse(tags) : [], 
+            visibility: visibility || "public",
+            videoUrl, // <-- URL Cloudinary
+            thumbnailUrl, // <-- URL Cloudinary
+        });
+
+        res.status(201).json(newVideo);
+    } catch (error) {
+        console.error("Lỗi POST /videos:", error);
+        res.status(500).json({ message: "Tạo video thất bại." });
     }
-
-    const newVideo = await Video.create({
-      ownerId: req.userId,
-      title,
-      description,
-      tags: tags || [],
-      visibility: visibility || "public",
-      videoUrl,
-      thumbnailUrl,
-    });
-
-    res.status(201).json(newVideo);
-  } catch (error) {
-    console.error("Lỗi POST /videos:", error);
-    res.status(500).json({ message: "Tạo video thất bại." });
-  }
 });
-
 
 // 2. READ: GET /api/videos/:videoId (Lấy thông tin và Tăng View)
 router.get("/:videoId", async (req, res) => {
