@@ -9,6 +9,37 @@ const Subscription = require('../models/Subscription.model');
 
 const router = express.Router();
 
+
+router.get('/my-subscriptions', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.userId;
+
+        // Tìm trong bảng Subscription xem userId này đang subscribe ai
+        const subscriptions = await Subscription.find({ subscriberId: userId })
+            .sort({ createdAt: -1 }) // Mới nhất lên đầu
+            .populate('channelId', 'channelName avatarUrl subscribersCount'); // Lấy thông tin kênh
+
+        // Map lại dữ liệu cho gọn (nếu cần)
+        const channels = subscriptions.map(sub => {
+            // Kiểm tra null (phòng trường hợp kênh đó bị xóa nhưng sub chưa xóa)
+            if (!sub.channelId) return null;
+            return {
+                _id: sub.channelId._id,
+                channelName: sub.channelId.channelName,
+                avatarUrl: sub.channelId.avatarUrl,
+                subscribersCount: sub.channelId.subscribersCount,
+                subscribedAt: sub.createdAt
+            };
+        }).filter(item => item !== null); // Lọc bỏ null
+
+        res.json(channels);
+    } catch (error) {
+        console.error("Lỗi GET /channels/my-subscriptions:", error);
+        res.status(500).json({ message: "Lỗi lấy danh sách đăng ký." });
+    }
+});
+
+
 // GET /api/channels/:channelId (Lấy thông tin kênh và 10 video mới nhất)
 router.get('/:channelId', async (req, res) => {
     const { channelId } = req.params;
